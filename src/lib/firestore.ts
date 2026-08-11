@@ -45,13 +45,6 @@ export interface BranchAuthSettings {
 export interface BranchSettings {
   complaintUrl: string;
   complaintWebhookUrl: string;
-
-  /**
-   * 관리자가 설정한 지점별 점검 시간대입니다.
-   *
-   * 기존 지점 설정 문서에는 이 값이 없을 수 있으므로
-   * 선택 속성으로 두고, 불러올 때 빈 배열로 보정합니다.
-   */
   inspectionTimeSlots?: InspectionTimeSlot[];
 }
 
@@ -66,11 +59,6 @@ type SubmitInspectionData = Omit<
   | "timeSlotStart"
   | "timeSlotEnd"
 > & {
-  /**
-   * 사용자 지정 점검 시간대가 설정된 경우 전달합니다.
-   *
-   * 전달하지 않으면 기존 오전/오후 방식으로 저장됩니다.
-   */
   timeSlot?: InspectionTimeSlot | null;
 };
 
@@ -90,7 +78,7 @@ function branchDoc(name: string, id: string) {
     : doc(db, name, id);
 }
 
-function branchSettingsDoc(id: "auth" | "branch") {
+function branchSettingsDoc(id: "auth" | "branch" | "inspectionTimes") {
   const branchId = getBranchIdFromUrl();
 
   if (!branchId) {
@@ -120,22 +108,13 @@ function defaultBranchSettings(): BranchSettings {
   };
 }
 
-/**
- * Firestore에서 가져온 점검 시간표를 안전한 형태로 변환합니다.
- *
- * 기존 설정 문서에 시간표가 없거나,
- * 일부 값이 잘못 저장되어 있더라도 화면이 중단되지 않도록 처리합니다.
- */
 function parseInspectionTimeSlots(value: unknown): InspectionTimeSlot[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
   const parsed = value.flatMap((rawSlot, index) => {
-    if (
-      !rawSlot ||
-      typeof rawSlot !== "object"
-    ) {
+    if (!rawSlot || typeof rawSlot !== "object") {
       return [];
     }
 
@@ -166,8 +145,7 @@ function parseInspectionTimeSlots(value: unknown): InspectionTimeSlot[] {
         : `slot_${index + 1}`;
 
     const order =
-      typeof slot.order === "number" &&
-      Number.isFinite(slot.order)
+      typeof slot.order === "number" && Number.isFinite(slot.order)
         ? slot.order
         : index + 1;
 
@@ -185,13 +163,10 @@ function parseInspectionTimeSlots(value: unknown): InspectionTimeSlot[] {
   return normalizeInspectionTimeSlots(parsed);
 }
 
-function parseBranchSettings(value: unknown): BranchSettings {
+function parseBranchDocument(value: unknown): BranchSettings {
   const defaults = defaultBranchSettings();
 
-  if (
-    !value ||
-    typeof value !== "object"
-  ) {
+  if (!value || typeof value !== "object") {
     return defaults;
   }
 
@@ -208,15 +183,29 @@ function parseBranchSettings(value: unknown): BranchSettings {
         ? data.complaintWebhookUrl
         : defaults.complaintWebhookUrl,
 
+    // 이전 버전에서 settings/branch 문서에 저장했던 시간표입니다.
+    // 새 버전에서는 settings/inspectionTimes 문서를 우선 사용합니다.
     inspectionTimeSlots: parseInspectionTimeSlots(
       data.inspectionTimeSlots
     ),
   };
 }
 
-async function seedRestroomsIfNeeded(
-  restrooms: Restroom[]
-) {
+function parseDedicatedTimeSettings(value: unknown): InspectionTimeSlot[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+
+  const data = value as {
+    inspectionTimeSlots?: unknown;
+  };
+
+  return parseInspectionTimeSlots(
+    data.inspectionTimeSlots
+  );
+}
+
+async function seedRestroomsIfNeeded(restrooms: Restroom[]) {
   const branchId = getBranchIdFromUrl();
 
   if (!branchId) return;
@@ -239,9 +228,7 @@ async function seedRestroomsIfNeeded(
   );
 }
 
-async function seedInspectionItemsIfNeeded(
-  items: InspectionItem[]
-) {
+async function seedInspectionItemsIfNeeded(items: InspectionItem[]) {
   const branchId = getBranchIdFromUrl();
 
   if (!branchId) return;
@@ -316,29 +303,20 @@ export async function addRestroom(
   const customId = data.id.trim().toLowerCase();
 
   if (!customId) {
-    throw new Error(
-      "화장실 ID가 비어 있습니다."
-    );
+    throw new Error("화장실 ID가 비어 있습니다.");
   }
 
-  const docRef = branchDoc(
-    "restrooms",
-    customId
-  );
-
+  const docRef = branchDoc("restrooms", customId);
   const snap = await getDoc(docRef);
 
   if (snap.exists()) {
-    throw new Error(
-      "이미 사용 중인 화장실 ID입니다."
-    );
+    throw new Error("이미 사용 중인 화장실 ID입니다.");
   }
 
   await setDoc(docRef, {
     floor: data.floor.trim(),
     name: data.name.trim(),
-    locationLabel:
-      (data.locationLabel ?? "").trim(),
+    locationLabel: (data.locationLabel ?? "").trim(),
     order: data.order ?? 0,
   });
 }
@@ -347,9 +325,7 @@ export async function updateRestroom(
   id: string,
   data: Partial<Omit<Restroom, "id">>
 ): Promise<void> {
-  const payload: Partial<
-    Omit<Restroom, "id">
-  > = {};
+  const payload: Partial<Omit<Restroom, "id">> = {};
 
   if (data.floor !== undefined) {
     payload.floor = data.floor.trim();
@@ -360,8 +336,7 @@ export async function updateRestroom(
   }
 
   if (data.locationLabel !== undefined) {
-    payload.locationLabel =
-      data.locationLabel.trim();
+    payload.locationLabel = data.locationLabel.trim();
   }
 
   if (data.order !== undefined) {
@@ -380,11 +355,10 @@ export async function updateRestroom(
 export async function reorderRestrooms(
   restrooms: Restroom[]
 ): Promise<void> {
-  const tasks = restrooms.map(
-    (room, index) =>
-      updateRestroom(room.id, {
-        order: index + 1,
-      })
+  const tasks = restrooms.map((room, index) =>
+    updateRestroom(room.id, {
+      order: index + 1,
+    })
   );
 
   await Promise.all(tasks);
@@ -401,9 +375,7 @@ export async function deleteRestroom(
 // ─── Inspection Items ────────────────────────────────────────────────────────
 
 export function subscribeInspectionItems(
-  callback: (
-    items: InspectionItem[]
-  ) => void
+  callback: (items: InspectionItem[]) => void
 ): () => void {
   const q = query(
     branchCollection("inspectionItems"),
@@ -435,8 +407,7 @@ export function subscribeInspectionItems(
         })) as InspectionItem[]
       );
     },
-    () =>
-      callback(DEFAULT_INSPECTION_ITEMS)
+    () => callback(DEFAULT_INSPECTION_ITEMS)
   );
 }
 
@@ -451,9 +422,7 @@ export async function addInspectionItem(
 
 export async function updateInspectionItem(
   id: string,
-  data: Partial<
-    Omit<InspectionItem, "id">
-  >
+  data: Partial<Omit<InspectionItem, "id">>
 ): Promise<void> {
   await setDoc(
     branchDoc("inspectionItems", id),
@@ -476,9 +445,7 @@ export async function deleteInspectionItem(
 
 export function subscribeLatestInspectionByRestroom(
   restroomId: string,
-  callback: (
-    inspection: Inspection | null
-  ) => void
+  callback: (inspection: Inspection | null) => void
 ): () => void {
   const q = query(
     branchCollection("inspections"),
@@ -489,12 +456,8 @@ export function subscribeLatestInspectionByRestroom(
     q,
     (snap) => {
       const found = snap.docs.find((d) => {
-        const data =
-          d.data() as Inspection;
-
-        return (
-          data.restroomId === restroomId
-        );
+        const data = d.data() as Inspection;
+        return data.restroomId === restroomId;
       });
 
       if (!found) {
@@ -512,22 +475,11 @@ export function subscribeLatestInspectionByRestroom(
         "subscribeLatestInspectionByRestroom error:",
         error
       );
-
       callback(null);
     }
   );
 }
 
-/**
- * 점검 기록을 저장합니다.
- *
- * timeSlot이 전달되면:
- * - 관리자가 입력한 제목을 period에 저장
- * - 시간대 ID, 제목, 시작 시간, 종료 시간 저장
- *
- * timeSlot이 없으면:
- * - 기존 오전/오후 방식으로 저장
- */
 export async function submitInspection(
   data: SubmitInspectionData
 ): Promise<void> {
@@ -543,18 +495,15 @@ export async function submitInspection(
   const payload: Record<string, unknown> = {
     ...inspectionData,
     checkedAt: Timestamp.fromDate(now),
-    period:
-      slotTitle || getPeriod(now),
+    period: slotTitle || getPeriod(now),
     status: "completed",
   };
 
   if (timeSlot && slotTitle) {
     payload.timeSlotId = timeSlot.id;
     payload.timeSlotTitle = slotTitle;
-    payload.timeSlotStart =
-      timeSlot.startTime;
-    payload.timeSlotEnd =
-      timeSlot.endTime;
+    payload.timeSlotStart = timeSlot.startTime;
+    payload.timeSlotEnd = timeSlot.endTime;
   }
 
   await addDoc(
@@ -565,9 +514,7 @@ export async function submitInspection(
 
 export function subscribeAllLatestInspections(
   restroomIds: string[],
-  callback: (
-    map: Record<string, Inspection>
-  ) => void
+  callback: (map: Record<string, Inspection>) => void
 ): () => void {
   if (restroomIds.length === 0) {
     callback({});
@@ -582,10 +529,7 @@ export function subscribeAllLatestInspections(
   return onSnapshot(
     q,
     (snap) => {
-      const map: Record<
-        string,
-        Inspection
-      > = {};
+      const map: Record<string, Inspection> = {};
 
       snap.docs.forEach((d) => {
         const data = {
@@ -594,9 +538,7 @@ export function subscribeAllLatestInspections(
         } as Inspection;
 
         if (
-          restroomIds.includes(
-            data.restroomId
-          ) &&
+          restroomIds.includes(data.restroomId) &&
           !map[data.restroomId]
         ) {
           map[data.restroomId] = data;
@@ -613,9 +555,7 @@ export function subscribeAllLatestInspections(
 
 export function subscribeInspectionsByDate(
   date: Date,
-  callback: (
-    inspections: Inspection[]
-  ) => void
+  callback: (inspections: Inspection[]) => void
 ): () => void {
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
@@ -666,25 +606,20 @@ async function getComplaintWebhookUrl(): Promise<string> {
   );
 
   const data =
-    snap.data() as
-      | Partial<BranchSettings>
-      | undefined;
+    snap.data() as Partial<BranchSettings> | undefined;
 
   return (
     data?.complaintWebhookUrl ?? ""
   ).trim();
 }
 
-async function sendDiscordComplaintAlert(
-  data: {
-    title: string;
-    location: string;
-    detail: string;
-    restroomName: string;
-  }
-) {
-  const webhookUrl =
-    await getComplaintWebhookUrl();
+async function sendDiscordComplaintAlert(data: {
+  title: string;
+  location: string;
+  detail: string;
+  restroomName: string;
+}) {
+  const webhookUrl = await getComplaintWebhookUrl();
 
   if (!webhookUrl) return;
 
@@ -701,8 +636,7 @@ async function sendDiscordComplaintAlert(
       },
       body: JSON.stringify({
         title: data.title,
-        restroomName:
-          data.restroomName,
+        restroomName: data.restroomName,
         location: data.location,
         detail: data.detail,
         createdAt,
@@ -716,7 +650,6 @@ async function sendDiscordComplaintAlert(
     "Apps Script response status:",
     response.status
   );
-
   console.log(
     "Apps Script response body:",
     text
@@ -759,8 +692,7 @@ export async function submitComplaint(
       title: data.title,
       location: data.location,
       detail: data.detail,
-      restroomName:
-        data.restroomName,
+      restroomName: data.restroomName,
     });
   } catch (error) {
     console.error(
@@ -771,9 +703,7 @@ export async function submitComplaint(
 }
 
 export function subscribeComplaints(
-  callback: (
-    complaints: Complaint[]
-  ) => void
+  callback: (complaints: Complaint[]) => void
 ): () => void {
   const q = query(
     branchCollection("complaints"),
@@ -834,12 +764,9 @@ export async function getBranchAuthSettings(): Promise<BranchAuthSettings> {
     };
   }
 
-  const ref =
-    branchSettingsDoc("auth");
-
+  const ref = branchSettingsDoc("auth");
   const snap = await getDoc(ref);
-  const defaults =
-    defaultAuthSettings();
+  const defaults = defaultAuthSettings();
 
   if (!snap.exists()) {
     await setDoc(
@@ -854,18 +781,10 @@ export async function getBranchAuthSettings(): Promise<BranchAuthSettings> {
   }
 
   const data =
-    snap.data() as
-      Partial<BranchAuthSettings>;
+    snap.data() as Partial<BranchAuthSettings>;
 
-  const branchInfo =
-    getCurrentBranchInfo();
+  const branchInfo = getCurrentBranchInfo();
 
-  /**
-   * 기존 테스트 버전의 초기 비밀번호가 저장되어 있는 경우에는
-   * 새로운 초기 비밀번호로 한 번 자동 보정합니다.
-   *
-   * 관리자가 이미 다른 번호로 변경한 경우에는 덮어쓰지 않습니다.
-   */
   if (
     branchInfo?.legacyInitialPassword &&
     data.adminPassword ===
@@ -922,106 +841,168 @@ export async function updateBranchAuthSettings(
 }
 
 /**
- * 현재 지점 설정을 한 번 불러옵니다.
- */
+* 지점 설정을 읽기만 합니다.
+*
+* 중요:
+* 읽기 실패/문서 없음 상황에서 기본값을 Firestore에 자동 저장하지 않습니다.
+* 고객/점검자 화면의 읽기 작업이 설정을 덮어쓰는 일을 방지합니다.
+*
+* 점검 시간표는 새 전용 문서(settings/inspectionTimes)를 우선 사용하고,
+* 전용 문서가 아직 없으면 이전 버전의 settings/branch.inspectionTimeSlots를
+* 호환용으로 읽습니다.
+*/
 export async function getBranchSettings(): Promise<BranchSettings> {
   const branchId = getBranchIdFromUrl();
-  const defaults =
-    defaultBranchSettings();
+  const defaults = defaultBranchSettings();
 
   if (!branchId) {
     return defaults;
   }
 
-  const ref =
-    branchSettingsDoc("branch");
+  const branchRef = branchSettingsDoc("branch");
+  const timeRef = branchSettingsDoc("inspectionTimes");
 
-  const snap = await getDoc(ref);
+  const [branchSnap, timeSnap] = await Promise.all([
+    getDoc(branchRef),
+    getDoc(timeRef),
+  ]);
 
-  if (!snap.exists()) {
-    await setDoc(
-      ref,
-      defaults,
-      {
-        merge: true,
-      }
-    );
+  const branchSettings = branchSnap.exists()
+    ? parseBranchDocument(branchSnap.data())
+    : defaults;
 
-    return defaults;
-  }
+  const legacySlots =
+    branchSettings.inspectionTimeSlots ?? [];
 
-  return parseBranchSettings(
-    snap.data()
-  );
+  const inspectionTimeSlots = timeSnap.exists()
+    ? parseDedicatedTimeSettings(timeSnap.data())
+    : legacySlots;
+
+  return {
+    complaintUrl:
+      branchSettings.complaintUrl ?? "",
+    complaintWebhookUrl:
+      branchSettings.complaintWebhookUrl ?? "",
+    inspectionTimeSlots,
+  };
 }
 
 /**
- * 지점 설정을 실시간으로 구독합니다.
- *
- * 고객 화면이나 점검자 화면에서 관리자의 시간표 변경을
- * 새로고침 없이 반영할 때 사용할 수 있습니다.
- */
+* 지점 설정을 실시간으로 읽습니다.
+*
+* 중요:
+* - 구독 오류 시 []를 callback 하지 않습니다.
+* - 문서가 없다고 해서 기본값을 Firestore에 자동 생성하지 않습니다.
+* - 정상적으로 한 번 읽은 설정은 일시적인 네트워크 오류로 덮어쓰지 않습니다.
+*
+* 전용 시간표 문서가 존재하면 그 값(빈 배열 포함)을 최우선으로 사용합니다.
+* 전용 문서가 없을 때만 이전 branch 문서의 시간표를 사용합니다.
+*/
 export function subscribeBranchSettings(
-  callback: (
-    settings: BranchSettings
-  ) => void
+  callback: (settings: BranchSettings) => void
 ): () => void {
   const branchId = getBranchIdFromUrl();
-  const defaults =
-    defaultBranchSettings();
+  const defaults = defaultBranchSettings();
 
   if (!branchId) {
     callback(defaults);
     return () => {};
   }
 
-  const ref =
-    branchSettingsDoc("branch");
+  const branchRef = branchSettingsDoc("branch");
+  const timeRef = branchSettingsDoc("inspectionTimes");
 
-  return onSnapshot(
-    ref,
+  let branchLoaded = false;
+  let timeLoaded = false;
+
+  let branchSettings: BranchSettings = defaults;
+  let legacySlots: InspectionTimeSlot[] = [];
+
+  let dedicatedTimeDocExists = false;
+  let dedicatedSlots: InspectionTimeSlot[] = [];
+
+  const emitIfReady = () => {
+    if (!branchLoaded || !timeLoaded) {
+      return;
+    }
+
+    callback({
+      complaintUrl:
+        branchSettings.complaintUrl ?? "",
+      complaintWebhookUrl:
+        branchSettings.complaintWebhookUrl ?? "",
+      inspectionTimeSlots:
+        dedicatedTimeDocExists
+          ? dedicatedSlots
+          : legacySlots,
+    });
+  };
+
+  const unsubscribeBranch = onSnapshot(
+    branchRef,
     (snap) => {
-      if (!snap.exists()) {
-        callback(defaults);
+      branchLoaded = true;
 
-        setDoc(
-          ref,
-          defaults,
-          {
-            merge: true,
-          }
-        ).catch((error) =>
-          console.error(
-            "기본 지점 설정 등록 실패:",
-            error
-          )
-        );
-
-        return;
+      if (snap.exists()) {
+        branchSettings =
+          parseBranchDocument(snap.data());
+        legacySlots =
+          branchSettings.inspectionTimeSlots ?? [];
+      } else {
+        branchSettings = defaults;
+        legacySlots = [];
       }
 
-      callback(
-        parseBranchSettings(
-          snap.data()
-        )
-      );
+      emitIfReady();
     },
     (error) => {
       console.error(
-        "subscribeBranchSettings error:",
+        "subscribeBranchSettings(branch) error:",
         error
       );
 
-      callback(defaults);
+      // 기존 화면 상태를 유지하기 위해 callback(defaults)를 호출하지 않습니다.
     }
   );
+
+  const unsubscribeTimes = onSnapshot(
+    timeRef,
+    (snap) => {
+      timeLoaded = true;
+      dedicatedTimeDocExists = snap.exists();
+
+      dedicatedSlots = snap.exists()
+        ? parseDedicatedTimeSettings(
+            snap.data()
+          )
+        : [];
+
+      emitIfReady();
+    },
+    (error) => {
+      console.error(
+        "subscribeBranchSettings(inspectionTimes) error:",
+        error
+      );
+
+      // 기존 화면 상태를 유지하기 위해 빈 배열을 전달하지 않습니다.
+    }
+  );
+
+  return () => {
+    unsubscribeBranch();
+    unsubscribeTimes();
+  };
 }
 
 /**
- * 관리자 화면에서 지점 설정을 저장합니다.
- *
- * 민원 설정과 점검 시간표를 같은 branch 설정 문서에 저장합니다.
- */
+* 민원 관련 지점 설정만 저장합니다.
+*
+* 중요:
+* 이 함수는 inspectionTimeSlots를 절대 수정하지 않습니다.
+* 오래된 화면/캐시에서 지점 설정을 저장하더라도 시간표가 빈 배열로
+* 덮어써지는 것을 막기 위한 방어 로직입니다.
+*/
 export async function updateBranchSettings(
   settings: BranchSettings
 ): Promise<void> {
@@ -1033,17 +1014,6 @@ export async function updateBranchSettings(
     );
   }
 
-  const inspectionTimeSlots =
-    normalizeInspectionTimeSlots(
-      settings.inspectionTimeSlots ?? []
-    ).map((slot) => ({
-      id: slot.id,
-      title: slot.title,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      order: slot.order,
-    }));
-
   await setDoc(
     branchSettingsDoc("branch"),
     {
@@ -1052,8 +1022,52 @@ export async function updateBranchSettings(
 
       complaintWebhookUrl:
         settings.complaintWebhookUrl.trim(),
+    },
+    {
+      merge: true,
+    }
+  );
+}
 
-      inspectionTimeSlots,
+/**
+* 점검 시간표는 별도의 전용 문서에만 저장합니다.
+*
+* settings/branch와 분리했기 때문에 비밀번호/민원 설정 저장이나
+* 오래된 관리 화면의 저장 동작이 시간표를 지울 수 없습니다.
+*
+* 빈 배열은 관리자가 실제로 모든 시간대를 삭제한 뒤 저장한 경우에만
+* 이 함수를 통해 명시적으로 저장됩니다.
+*/
+export async function updateInspectionTimeSlots(
+  slots: InspectionTimeSlot[]
+): Promise<void> {
+  const branchId = getBranchIdFromUrl();
+
+  if (!branchId) {
+    throw new Error(
+      "점검 시간 설정은 지점 전용 화면에서만 변경할 수 있습니다."
+    );
+  }
+
+  const normalizedSlots =
+    normalizeInspectionTimeSlots(slots)
+      .map((slot) => ({
+        id: slot.id,
+        title: slot.title,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        order: slot.order,
+      }));
+
+  await setDoc(
+    branchSettingsDoc("inspectionTimes"),
+    {
+      inspectionTimeSlots:
+        normalizedSlots,
+      schemaVersion: 2,
+      updatedAt: Timestamp.fromDate(
+        new Date()
+      ),
     },
     {
       merge: true,
