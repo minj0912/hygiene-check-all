@@ -25,6 +25,7 @@ import {
   updateBranchAuthSettings,
   getBranchSettings,
   updateBranchSettings,
+  updateInspectionTimeSlots,
   BranchAuthSettings,
   BranchSettings,
 } from "@/lib/firestore";
@@ -158,39 +159,68 @@ function DailyInspectionView({
                     {roomInspections.length > 0 ? `${roomInspections.length}회 점검` : "미점검"}
                   </span>
                 </div>
+
                 {roomInspections.length === 0 ? (
-                  <div className="px-4 py-4 text-center text-sm text-slate-400">이 날 점검 기록 없음</div>
+                  <div className="px-4 py-4 text-center text-sm text-slate-400">
+                    이 날 점검 기록 없음
+                  </div>
                 ) : (
                   <div className="divide-y divide-slate-50">
                     {roomInspections.map((ins, idx) => {
-                      const dt = ins.checkedAt instanceof Date ? ins.checkedAt : (ins.checkedAt as any)?.toDate?.() ?? new Date();
+                      const dt =
+                        ins.checkedAt instanceof Date
+                          ? ins.checkedAt
+                          : (ins.checkedAt as any)?.toDate?.() ?? new Date();
+
                       const hh = String(dt.getHours()).padStart(2, "0");
                       const mm = String(dt.getMinutes()).padStart(2, "0");
-                      const oCount = Object.values(ins.items ?? {}).filter((v) => v === "O").length;
-                      const xCount = Object.values(ins.items ?? {}).filter((v) => v === "X").length;
+
+                      const oCount = Object.values(ins.items ?? {}).filter(
+                        (v) => v === "O"
+                      ).length;
+
+                      const xCount = Object.values(ins.items ?? {}).filter(
+                        (v) => v === "X"
+                      ).length;
+
                       return (
                         <div key={ins.id ?? idx}>
                           <div className="px-4 py-2.5 flex items-center justify-between bg-slate-50/50">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{ins.period}</span>
-                              <span className="text-xs text-slate-500">{hh}:{mm}</span>
-                              <span className="text-xs text-slate-600 font-medium">{ins.inspectorName}</span>
+                              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                                {ins.period}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {hh}:{mm}
+                              </span>
+                              <span className="text-xs text-slate-600 font-medium">
+                                {ins.inspectorName}
+                              </span>
                             </div>
+
                             <div className="flex gap-1.5">
-                              <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">O {oCount}</span>
-                              <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-bold">X {xCount}</span>
+                              <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">
+                                O {oCount}
+                              </span>
+                              <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-bold">
+                                X {xCount}
+                              </span>
                             </div>
                           </div>
+
                           <div className="px-4 py-3 flex flex-wrap gap-1.5">
                             {inspectionItems.map((item) => {
                               const r = ins.items?.[item.id];
+
                               return (
                                 <span
                                   key={item.id}
                                   className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-medium ${
-                                    r === "O" ? "bg-green-50 text-green-700" :
-                                    r === "X" ? "bg-red-50 text-red-600" :
-                                    "bg-slate-100 text-slate-400"
+                                    r === "O"
+                                      ? "bg-green-50 text-green-700"
+                                      : r === "X"
+                                      ? "bg-red-50 text-red-600"
+                                      : "bg-slate-100 text-slate-400"
                                   }`}
                                 >
                                   {item.label}
@@ -217,10 +247,15 @@ function isValidRestroomId(value: string) {
   return /^[a-z0-9_]+$/.test(value);
 }
 
-function makeRestroomId(floor: string, name: string, restrooms: Restroom[]) {
+function makeRestroomId(
+  floor: string,
+  name: string,
+  restrooms: Restroom[]
+) {
   const floorPart = floor.trim().toLowerCase().replace(/\s+/g, "");
 
   let genderPart = "restroom";
+
   if (name.includes("여자")) genderPart = "women";
   else if (name.includes("남자")) genderPart = "men";
   else if (name.includes("가족")) genderPart = "family";
@@ -281,12 +316,16 @@ function SortableRestroomCard({
         {isEditing ? (
           <div className="space-y-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">화장실 ID</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                화장실 ID
+              </label>
+
               <input
                 value={room.id}
                 readOnly
                 className="w-full border border-slate-200 bg-slate-100 rounded-lg px-3 py-2 text-sm text-slate-500"
               />
+
               <p className="mt-1 text-xs text-slate-400">
                 저장된 QR 링크와 연결되므로 ID는 수정할 수 없습니다.
               </p>
@@ -295,13 +334,24 @@ function SortableRestroomCard({
             <div className="grid grid-cols-3 gap-2">
               <input
                 value={editValues.floor ?? ""}
-                onChange={(e) => onEditValuesChange({ ...editValues, floor: e.target.value })}
+                onChange={(e) =>
+                  onEditValuesChange({
+                    ...editValues,
+                    floor: e.target.value,
+                  })
+                }
                 placeholder="층"
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
+
               <input
                 value={editValues.name ?? ""}
-                onChange={(e) => onEditValuesChange({ ...editValues, name: e.target.value })}
+                onChange={(e) =>
+                  onEditValuesChange({
+                    ...editValues,
+                    name: e.target.value,
+                  })
+                }
                 placeholder="화장실명"
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 col-span-2"
               />
@@ -309,7 +359,12 @@ function SortableRestroomCard({
 
             <input
               value={editValues.locationLabel ?? ""}
-              onChange={(e) => onEditValuesChange({ ...editValues, locationLabel: e.target.value })}
+              onChange={(e) =>
+                onEditValuesChange({
+                  ...editValues,
+                  locationLabel: e.target.value,
+                })
+              }
               placeholder="위치 설명"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
@@ -321,6 +376,7 @@ function SortableRestroomCard({
               >
                 <Check size={13} /> 저장
               </button>
+
               <button
                 onClick={onCancelEdit}
                 className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600"
@@ -345,10 +401,20 @@ function SortableRestroomCard({
 
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{room.floor}</span>
-                    <span className="text-sm font-semibold text-slate-800">{room.name}</span>
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                      {room.floor}
+                    </span>
+
+                    <span className="text-sm font-semibold text-slate-800">
+                      {room.name}
+                    </span>
                   </div>
-                  {room.locationLabel && <p className="text-xs text-slate-400 mt-0.5">{room.locationLabel}</p>}
+
+                  {room.locationLabel && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {room.locationLabel}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -359,6 +425,7 @@ function SortableRestroomCard({
                 >
                   <Pencil size={14} />
                 </button>
+
                 <button
                   onClick={() => onDelete(room.id)}
                   className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400"
@@ -370,12 +437,16 @@ function SortableRestroomCard({
 
             <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
               <p className="text-[11px] text-slate-500 font-semibold">ID</p>
-              <p className="text-xs text-slate-700 font-mono break-all">{room.id}</p>
+              <p className="text-xs text-slate-700 font-mono break-all">
+                {room.id}
+              </p>
             </div>
 
             <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
               <p className="text-[11px] text-slate-500 font-semibold">링크</p>
-              <p className="text-xs text-slate-700 break-all">{roomUrl}</p>
+              <p className="text-xs text-slate-700 break-all">
+                {roomUrl}
+              </p>
             </div>
 
             <div className="flex gap-2">
@@ -385,6 +456,7 @@ function SortableRestroomCard({
               >
                 링크 복사
               </button>
+
               <button
                 onClick={() => onOpenQr(room.id)}
                 className="inline-flex items-center gap-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50"
@@ -403,6 +475,7 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<Restroom>>({});
   const [adding, setAdding] = useState(false);
+
   const [newRoom, setNewRoom] = useState<Restroom>({
     id: "",
     floor: "",
@@ -411,7 +484,8 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
     order: 0,
   });
 
-  const [localRestrooms, setLocalRestrooms] = useState<Restroom[]>(restrooms);
+  const [localRestrooms, setLocalRestrooms] =
+    useState<Restroom[]>(restrooms);
 
   useEffect(() => {
     setLocalRestrooms(restrooms);
@@ -425,10 +499,14 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
     })
   );
 
-  const restroomIds = useMemo(() => localRestrooms.map((r) => r.id), [localRestrooms]);
+  const restroomIds = useMemo(
+    () => localRestrooms.map((r) => r.id),
+    [localRestrooms]
+  );
 
   const startEdit = (r: Restroom) => {
     setEditId(r.id);
+
     setEditValues({
       floor: r.floor,
       name: r.name,
@@ -456,6 +534,7 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
         locationLabel: trimmedLocation,
         order: editValues.order ?? 0,
       });
+
       setEditId(null);
     } catch (error) {
       console.error(error);
@@ -475,11 +554,16 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
     }
 
     if (!isValidRestroomId(trimmedId)) {
-      alert("화장실 ID는 영문 소문자, 숫자, 언더스코어(_)만 사용할 수 있습니다.");
+      alert(
+        "화장실 ID는 영문 소문자, 숫자, 언더스코어(_)만 사용할 수 있습니다."
+      );
       return;
     }
 
-    const duplicated = localRestrooms.some((r) => r.id === trimmedId);
+    const duplicated = localRestrooms.some(
+      (r) => r.id === trimmedId
+    );
+
     if (duplicated) {
       alert("이미 사용 중인 화장실 ID입니다.");
       return;
@@ -501,11 +585,17 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
         locationLabel: "",
         order: 0,
       });
+
       setAdding(false);
       alert("화장실이 추가되었습니다.");
     } catch (error) {
       console.error(error);
-      alert(error instanceof Error ? error.message : "화장실 추가 중 오류가 발생했습니다.");
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "화장실 추가 중 오류가 발생했습니다."
+      );
     }
   };
 
@@ -522,12 +612,27 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
 
   const openQrImage = (roomId: string) => {
     const roomUrl = makeRestroomUrl(roomId);
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(roomUrl)}`;
-    window.open(qrUrl, "_blank", "noopener,noreferrer");
+
+    const qrUrl =
+      `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(
+        roomUrl
+      )}`;
+
+    window.open(
+      qrUrl,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("삭제 시 해당 화장실은 목록에서 제거되며, 이미 부착된 QR코드는 더 이상 정상 작동하지 않을 수 있습니다.\n계속하시겠습니까?")) return;
+    if (
+      !window.confirm(
+        "삭제 시 해당 화장실은 목록에서 제거되며, 이미 부착된 QR코드는 더 이상 정상 작동하지 않을 수 있습니다.\n계속하시겠습니까?"
+      )
+    ) {
+      return;
+    }
 
     try {
       await deleteRestroom(id);
@@ -542,12 +647,21 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
 
     if (!over || active.id === over.id) return;
 
-    const oldIndex = localRestrooms.findIndex((r) => r.id === active.id);
-    const newIndex = localRestrooms.findIndex((r) => r.id === over.id);
+    const oldIndex = localRestrooms.findIndex(
+      (r) => r.id === active.id
+    );
+
+    const newIndex = localRestrooms.findIndex(
+      (r) => r.id === over.id
+    );
 
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const moved = arrayMove(localRestrooms, oldIndex, newIndex).map((room, index) => ({
+    const moved = arrayMove(
+      localRestrooms,
+      oldIndex,
+      newIndex
+    ).map((room, index) => ({
       ...room,
       order: index + 1,
     }));
@@ -567,9 +681,15 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-slate-700">화장실 목록</h3>
-          <p className="text-xs text-slate-400 mt-1">왼쪽 손잡이를 드래그해서 순서를 바꿀 수 있어요.</p>
+          <h3 className="text-sm font-bold text-slate-700">
+            화장실 목록
+          </h3>
+
+          <p className="text-xs text-slate-400 mt-1">
+            왼쪽 손잡이를 드래그해서 순서를 바꿀 수 있어요.
+          </p>
         </div>
+
         <button
           onClick={() => setAdding(!adding)}
           className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
@@ -581,22 +701,36 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
       {adding && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">화장실 ID</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              화장실 ID
+            </label>
+
             <input
               value={newRoom.id}
-              onChange={(e) => setNewRoom({ ...newRoom, id: e.target.value.toLowerCase() })}
+              onChange={(e) =>
+                setNewRoom({
+                  ...newRoom,
+                  id: e.target.value.toLowerCase(),
+                })
+              }
               placeholder="예: 10f_women_2"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
+
             <p className="mt-1 text-xs text-slate-400">
               영문 소문자, 숫자, 언더스코어(_)만 사용 가능
             </p>
+
             <button
               type="button"
               onClick={() =>
                 setNewRoom((prev) => ({
                   ...prev,
-                  id: makeRestroomId(prev.floor, prev.name, localRestrooms),
+                  id: makeRestroomId(
+                    prev.floor,
+                    prev.name,
+                    localRestrooms
+                  ),
                 }))
               }
               className="mt-2 text-xs px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
@@ -608,13 +742,24 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
           <div className="grid grid-cols-3 gap-2">
             <input
               value={newRoom.floor}
-              onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })}
+              onChange={(e) =>
+                setNewRoom({
+                  ...newRoom,
+                  floor: e.target.value,
+                })
+              }
               placeholder="층 (예: 10F)"
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
+
             <input
               value={newRoom.name}
-              onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+              onChange={(e) =>
+                setNewRoom({
+                  ...newRoom,
+                  name: e.target.value,
+                })
+              }
               placeholder="화장실명"
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 col-span-2"
             />
@@ -622,7 +767,12 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
 
           <input
             value={newRoom.locationLabel}
-            onChange={(e) => setNewRoom({ ...newRoom, locationLabel: e.target.value })}
+            onChange={(e) =>
+              setNewRoom({
+                ...newRoom,
+                locationLabel: e.target.value,
+              })
+            }
             placeholder="위치 설명 (예: 에스컬레이터 옆)"
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
@@ -634,10 +784,18 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
             >
               저장
             </button>
+
             <button
               onClick={() => {
                 setAdding(false);
-                setNewRoom({ id: "", floor: "", name: "", locationLabel: "", order: 0 });
+
+                setNewRoom({
+                  id: "",
+                  floor: "",
+                  name: "",
+                  locationLabel: "",
+                  order: 0,
+                });
               }}
               className="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
             >
@@ -647,8 +805,15 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
         </div>
       )}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={restroomIds} strategy={verticalListSortingStrategy}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={restroomIds}
+          strategy={verticalListSortingStrategy}
+        >
           <div className="space-y-2">
             {localRestrooms.map((room) => (
               <SortableRestroomCard
@@ -672,51 +837,76 @@ function RestroomManager({ restrooms }: { restrooms: Restroom[] }) {
   );
 }
 
-
 function BranchSettingsManager() {
   const branchInfo = getCurrentBranchInfo();
+
   const [auth, setAuth] = useState<BranchAuthSettings>({
     adminPassword: "",
     inspectorPassword: "",
   });
+
   const [settings, setSettings] = useState<BranchSettings>({
     complaintUrl: "",
     complaintWebhookUrl: "",
     inspectionTimeSlots: [],
   });
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadSucceeded, setLoadSucceeded] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!branchInfo) return;
 
     let mounted = true;
-    setLoading(true);
 
-    Promise.all([getBranchAuthSettings(), getBranchSettings()])
+    setLoading(true);
+    setLoadSucceeded(false);
+    setLoadError("");
+
+    Promise.all([
+      getBranchAuthSettings(),
+      getBranchSettings(),
+    ])
       .then(([authSettings, branchSettings]) => {
         if (!mounted) return;
 
         setAuth(authSettings);
+
         setSettings({
           ...branchSettings,
-          inspectionTimeSlots: branchSettings.inspectionTimeSlots ?? [],
+          inspectionTimeSlots:
+            branchSettings.inspectionTimeSlots ?? [],
         });
+
+        setLoadSucceeded(true);
       })
       .catch((error) => {
         console.error(error);
-        alert("지점 설정을 불러오지 못했습니다.");
+
+        if (!mounted) return;
+
+        setLoadSucceeded(false);
+
+        setLoadError(
+          "지점 설정을 정상적으로 불러오지 못했습니다. 안전을 위해 저장 기능을 잠갔습니다."
+        );
       })
       .finally(() => {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       });
 
     return () => {
       mounted = false;
     };
-  }, [branchInfo?.id]);
+  }, [branchInfo?.id, reloadKey]);
 
-  const timeSlots = settings.inspectionTimeSlots ?? [];
+  const timeSlots =
+    settings.inspectionTimeSlots ?? [];
 
   const updateTimeSlot = (
     id: string,
@@ -724,24 +914,30 @@ function BranchSettingsManager() {
   ) => {
     setSettings((previous) => ({
       ...previous,
-      inspectionTimeSlots: (previous.inspectionTimeSlots ?? []).map((slot) =>
-        slot.id === id
-          ? {
-              ...slot,
-              ...changes,
-            }
-          : slot
-      ),
+
+      inspectionTimeSlots:
+        (previous.inspectionTimeSlots ?? []).map(
+          (slot) =>
+            slot.id === id
+              ? {
+                  ...slot,
+                  ...changes,
+                }
+              : slot
+        ),
     }));
   };
 
   const addTimeSlot = () => {
-    const nextOrder = timeSlots.length + 1;
+    const nextOrder =
+      timeSlots.length + 1;
 
     setSettings((previous) => ({
       ...previous,
+
       inspectionTimeSlots: [
         ...(previous.inspectionTimeSlots ?? []),
+
         {
           id: createInspectionTimeSlotId(),
           title: "",
@@ -756,12 +952,16 @@ function BranchSettingsManager() {
   const deleteTimeSlot = (id: string) => {
     setSettings((previous) => ({
       ...previous,
-      inspectionTimeSlots: (previous.inspectionTimeSlots ?? [])
-        .filter((slot) => slot.id !== id)
-        .map((slot, index) => ({
-          ...slot,
-          order: index + 1,
-        })),
+
+      inspectionTimeSlots:
+        (previous.inspectionTimeSlots ?? [])
+          .filter(
+            (slot) => slot.id !== id
+          )
+          .map((slot, index) => ({
+            ...slot,
+            order: index + 1,
+          })),
     }));
   };
 
@@ -774,33 +974,70 @@ function BranchSettingsManager() {
   }
 
   const save = async () => {
-    if (!auth.adminPassword.trim() || !auth.inspectorPassword.trim()) {
-      alert("관리자 비밀번호와 점검자 비밀번호를 모두 입력해주세요.");
+    if (!loadSucceeded) {
+      alert(
+        "지점 설정을 정상적으로 불러오지 못한 상태에서는 저장할 수 없습니다. 먼저 다시 불러오기를 해주세요."
+      );
       return;
     }
 
-    const validation = validateInspectionTimeSlots(timeSlots);
+    if (
+      !auth.adminPassword.trim() ||
+      !auth.inspectorPassword.trim()
+    ) {
+      alert(
+        "관리자 비밀번호와 점검자 비밀번호를 모두 입력해주세요."
+      );
+      return;
+    }
+
+    const validation =
+      validateInspectionTimeSlots(
+        timeSlots
+      );
 
     if (!validation.valid) {
-      alert(validation.message ?? "점검 시간 설정을 확인해주세요.");
+      alert(
+        validation.message ??
+          "점검 시간 설정을 확인해주세요."
+      );
       return;
     }
 
-    const normalizedTimeSlots = normalizeInspectionTimeSlots(timeSlots);
+    const normalizedTimeSlots =
+      normalizeInspectionTimeSlots(
+        timeSlots
+      );
+
     const normalizedSettings: BranchSettings = {
       ...settings,
-      inspectionTimeSlots: normalizedTimeSlots,
+      inspectionTimeSlots:
+        normalizedTimeSlots,
     };
 
     setSaving(true);
 
     try {
-      await updateBranchAuthSettings(auth);
-      await updateBranchSettings(normalizedSettings);
-      setSettings(normalizedSettings);
-      alert("지점 설정이 저장되었습니다.");
+      await Promise.all([
+        updateBranchAuthSettings(auth),
+        updateBranchSettings(
+          normalizedSettings
+        ),
+        updateInspectionTimeSlots(
+          normalizedTimeSlots
+        ),
+      ]);
+
+      setSettings(
+        normalizedSettings
+      );
+
+      alert(
+        "지점 설정이 저장되었습니다."
+      );
     } catch (error) {
       console.error(error);
+
       alert(
         error instanceof Error
           ? error.message
@@ -819,15 +1056,53 @@ function BranchSettingsManager() {
     );
   }
 
+  if (!loadSucceeded) {
+    return (
+      <div className="bg-white rounded-2xl border border-red-200 shadow-sm p-5 space-y-3">
+        <div>
+          <h3 className="text-sm font-bold text-red-700">
+            지점 설정을 불러오지 못했습니다.
+          </h3>
+
+          <p className="text-xs text-red-500 mt-1 leading-5">
+            {loadError ||
+              "네트워크 상태를 확인한 뒤 다시 시도해주세요."}
+          </p>
+
+          <p className="text-xs text-slate-500 mt-2 leading-5">
+            기존 점검 시간표가 빈 값으로 덮어써지는 것을 막기 위해 이 상태에서는 저장할 수 없습니다.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setReloadKey(
+              (value) => value + 1
+            )
+          }
+          className="w-full py-2.5 bg-slate-800 text-white rounded-xl text-sm font-semibold hover:bg-slate-900"
+        >
+          다시 불러오기
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <KeyRound size={16} className="text-blue-600" />
+          <KeyRound
+            size={16}
+            className="text-blue-600"
+          />
+
           <div>
             <h3 className="text-sm font-bold text-slate-700">
               {branchInfo.name} 비밀번호 관리
             </h3>
+
             <p className="text-xs text-slate-400 mt-0.5">
               해당 지점 관리자·점검자 비밀번호만 변경됩니다.
             </p>
@@ -839,13 +1114,17 @@ function BranchSettingsManager() {
             <label className="block text-xs font-semibold text-slate-600 mb-1">
               관리자 비밀번호
             </label>
+
             <input
               type="password"
-              value={auth.adminPassword}
+              value={
+                auth.adminPassword
+              }
               onChange={(e) =>
                 setAuth({
                   ...auth,
-                  adminPassword: e.target.value,
+                  adminPassword:
+                    e.target.value,
                 })
               }
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -857,13 +1136,17 @@ function BranchSettingsManager() {
             <label className="block text-xs font-semibold text-slate-600 mb-1">
               점검자 비밀번호
             </label>
+
             <input
               type="password"
-              value={auth.inspectorPassword}
+              value={
+                auth.inspectorPassword
+              }
               onChange={(e) =>
                 setAuth({
                   ...auth,
-                  inspectorPassword: e.target.value,
+                  inspectorPassword:
+                    e.target.value,
                 })
               }
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -876,11 +1159,16 @@ function BranchSettingsManager() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2">
-            <Clock3 size={17} className="text-blue-600 mt-0.5 shrink-0" />
+            <Clock3
+              size={17}
+              className="text-blue-600 mt-0.5 shrink-0"
+            />
+
             <div>
               <h3 className="text-sm font-bold text-slate-700">
                 점검 시간 설정
               </h3>
+
               <p className="text-xs text-slate-400 mt-0.5 leading-5">
                 제목은 고객·점검자 화면에 표시되고, 설정한 시간 안에서만
                 해당 점검을 진행할 수 있습니다.
@@ -903,6 +1191,7 @@ function BranchSettingsManager() {
             <p className="text-sm font-semibold text-slate-600">
               등록된 점검 시간이 없습니다.
             </p>
+
             <p className="text-xs text-slate-400 mt-1 leading-5">
               시간표를 등록하기 전까지는 기존 오전·오후 점검 방식이
               유지됩니다.
@@ -910,101 +1199,144 @@ function BranchSettingsManager() {
           </div>
         ) : (
           <div className="space-y-3">
-            {timeSlots.map((slot, index) => (
-              <div
-                key={slot.id}
-                className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-                    {index + 1}
-                  </span>
+            {timeSlots.map(
+              (slot, index) => (
+                <div
+                  key={slot.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                      {index + 1}
+                    </span>
 
-                  <button
-                    type="button"
-                    onClick={() => deleteTimeSlot(slot.id)}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-red-500 hover:bg-red-50"
-                  >
-                    <Trash2 size={13} />
-                    삭제
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    제목
-                  </label>
-                  <input
-                    value={slot.title}
-                    onChange={(e) =>
-                      updateTimeSlot(slot.id, {
-                        title: e.target.value,
-                      })
-                    }
-                    placeholder="예: 11시"
-                    maxLength={30}
-                    className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  />
-                  <p className="text-xs text-slate-400 mt-1">
-                    고객과 점검자에게 표시되는 이름입니다.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      시작 시간
-                    </label>
-                    <input
-                      type="time"
-                      value={slot.startTime}
-                      onChange={(e) =>
-                        updateTimeSlot(slot.id, {
-                          startTime: e.target.value,
-                        })
+                    <button
+                      type="button"
+                      onClick={() =>
+                        deleteTimeSlot(
+                          slot.id
+                        )
                       }
-                      className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-red-500 hover:bg-red-50"
+                    >
+                      <Trash2
+                        size={13}
+                      />
+                      삭제
+                    </button>
                   </div>
-
-                  <span className="pb-2 text-sm font-bold text-slate-400">
-                    ~
-                  </span>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      종료 시간
+                      제목
                     </label>
+
                     <input
-                      type="time"
-                      value={slot.endTime}
+                      value={slot.title}
                       onChange={(e) =>
-                        updateTimeSlot(slot.id, {
-                          endTime: e.target.value,
-                        })
+                        updateTimeSlot(
+                          slot.id,
+                          {
+                            title:
+                              e.target.value,
+                          }
+                        )
                       }
+                      placeholder="예: 11시"
+                      maxLength={30}
                       className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
-                  </div>
-                </div>
 
-                {slot.title && slot.startTime && slot.endTime && (
-                  <div className="rounded-lg bg-white border border-slate-100 px-3 py-2">
-                    <p className="text-xs text-slate-500">
-                      화면 표시{" "}
-                      <span className="font-bold text-blue-600">
-                        {slot.title}
-                      </span>
-                      <span className="mx-1.5 text-slate-300">·</span>
-                      점검 가능{" "}
-                      <span className="font-semibold text-slate-700">
-                        {slot.startTime} ~ {slot.endTime}
-                      </span>
+                    <p className="text-xs text-slate-400 mt-1">
+                      고객과 점검자에게 표시되는 이름입니다.
                     </p>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        시작 시간
+                      </label>
+
+                      <input
+                        type="time"
+                        value={
+                          slot.startTime
+                        }
+                        onChange={(e) =>
+                          updateTimeSlot(
+                            slot.id,
+                            {
+                              startTime:
+                                e.target
+                                  .value,
+                            }
+                          )
+                        }
+                        className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+
+                    <span className="pb-2 text-sm font-bold text-slate-400">
+                      ~
+                    </span>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        종료 시간
+                      </label>
+
+                      <input
+                        type="time"
+                        value={
+                          slot.endTime
+                        }
+                        onChange={(e) =>
+                          updateTimeSlot(
+                            slot.id,
+                            {
+                              endTime:
+                                e.target
+                                  .value,
+                            }
+                          )
+                        }
+                        className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                  </div>
+
+                  {slot.title &&
+                    slot.startTime &&
+                    slot.endTime && (
+                      <div className="rounded-lg bg-white border border-slate-100 px-3 py-2">
+                        <p className="text-xs text-slate-500">
+                          화면 표시{" "}
+                          <span className="font-bold text-blue-600">
+                            {slot.title}
+                          </span>
+
+                          <span className="mx-1.5 text-slate-300">
+                            ·
+                          </span>
+
+                          점검 가능{" "}
+
+                          <span className="font-semibold text-slate-700">
+                            {
+                              slot.startTime
+                            }{" "}
+                            ~{" "}
+                            {
+                              slot.endTime
+                            }
+                          </span>
+                        </p>
+                      </div>
+                    )}
+                </div>
+              )
+            )}
           </div>
         )}
 
@@ -1024,6 +1356,7 @@ function BranchSettingsManager() {
           <h3 className="text-sm font-bold text-slate-700">
             민원 채널 설정
           </h3>
+
           <p className="text-xs text-slate-400 mt-0.5">
             아직 채널이 없으면 비워두셔도 됩니다.
           </p>
@@ -1033,12 +1366,16 @@ function BranchSettingsManager() {
           <label className="block text-xs font-semibold text-slate-600 mb-1">
             민원 접수 링크
           </label>
+
           <input
-            value={settings.complaintUrl}
+            value={
+              settings.complaintUrl
+            }
             onChange={(e) =>
               setSettings({
                 ...settings,
-                complaintUrl: e.target.value,
+                complaintUrl:
+                  e.target.value,
               })
             }
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -1050,17 +1387,22 @@ function BranchSettingsManager() {
           <label className="block text-xs font-semibold text-slate-600 mb-1">
             민원 알림 Webhook URL
           </label>
+
           <input
-            value={settings.complaintWebhookUrl}
+            value={
+              settings.complaintWebhookUrl
+            }
             onChange={(e) =>
               setSettings({
                 ...settings,
-                complaintWebhookUrl: e.target.value,
+                complaintWebhookUrl:
+                  e.target.value,
               })
             }
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             placeholder="추후 입력"
           />
+
           <p className="text-xs text-slate-400 mt-1">
             비워두면 해당 지점 민원은 저장만 되고 외부 알림은 보내지 않습니다.
           </p>
@@ -1070,30 +1412,68 @@ function BranchSettingsManager() {
       <button
         type="button"
         onClick={save}
-        disabled={saving}
+        disabled={
+          saving ||
+          !loadSucceeded
+        }
         className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
       >
-        {saving ? "저장 중..." : "지점 설정 저장"}
+        {saving
+          ? "저장 중..."
+          : "지점 설정 저장"}
       </button>
     </div>
   );
 }
 
-function InspectionItemManager({ items }: { items: InspectionItem[] }) {
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editLabel, setEditLabel] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [newLabel, setNewLabel] = useState("");
+function InspectionItemManager({
+  items,
+}: {
+  items: InspectionItem[];
+}) {
+  const [editId, setEditId] =
+    useState<string | null>(null);
+
+  const [editLabel, setEditLabel] =
+    useState("");
+
+  const [adding, setAdding] =
+    useState(false);
+
+  const [newLabel, setNewLabel] =
+    useState("");
 
   const saveEdit = async () => {
-    if (!editId || !editLabel.trim()) return;
-    await updateInspectionItem(editId, { label: editLabel.trim() });
+    if (
+      !editId ||
+      !editLabel.trim()
+    ) {
+      return;
+    }
+
+    await updateInspectionItem(
+      editId,
+      {
+        label:
+          editLabel.trim(),
+      }
+    );
+
     setEditId(null);
   };
 
   const handleAdd = async () => {
-    if (!newLabel.trim()) return;
-    await addInspectionItem({ label: newLabel.trim(), order: items.length + 1 });
+    if (!newLabel.trim()) {
+      return;
+    }
+
+    await addInspectionItem({
+      label:
+        newLabel.trim(),
+      order:
+        items.length + 1,
+    });
+
     setNewLabel("");
     setAdding(false);
   };
@@ -1101,9 +1481,14 @@ function InspectionItemManager({ items }: { items: InspectionItem[] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-slate-700">점검 항목</h3>
+        <h3 className="text-sm font-bold text-slate-700">
+          점검 항목
+        </h3>
+
         <button
-          onClick={() => setAdding(!adding)}
+          onClick={() =>
+            setAdding(!adding)
+          }
           className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
         >
           <Plus size={13} /> 추가
@@ -1114,68 +1499,240 @@ function InspectionItemManager({ items }: { items: InspectionItem[] }) {
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex gap-2">
           <input
             value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
+            onChange={(e) =>
+              setNewLabel(
+                e.target.value
+              )
+            }
             placeholder="항목명 (예: 환기팬)"
             className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
-          <button onClick={handleAdd} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold">저장</button>
-          <button onClick={() => setAdding(false)} className="px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-600">취소</button>
+
+          <button
+            onClick={
+              handleAdd
+            }
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold"
+          >
+            저장
+          </button>
+
+          <button
+            onClick={() =>
+              setAdding(false)
+            }
+            className="px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-600"
+          >
+            취소
+          </button>
         </div>
       )}
 
       <div className="space-y-2">
-        {items.map((item) => (
-          <div key={item.id} className="bg-white border border-slate-100 rounded-xl px-4 py-3 shadow-sm flex items-center justify-between">
-            {editId === item.id ? (
-              <div className="flex flex-1 gap-2">
-                <input
-                  value={editLabel}
-                  onChange={(e) => setEditLabel(e.target.value)}
-                  className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-                <button onClick={saveEdit} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold">저장</button>
-                <button onClick={() => setEditId(null)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600">취소</button>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 font-mono w-5 text-center">{item.order}</span>
-                  <span className="text-sm font-semibold text-slate-800">{item.label}</span>
+        {items.map(
+          (item) => (
+            <div
+              key={item.id}
+              className="bg-white border border-slate-100 rounded-xl px-4 py-3 shadow-sm flex items-center justify-between"
+            >
+              {editId ===
+              item.id ? (
+                <div className="flex flex-1 gap-2">
+                  <input
+                    value={
+                      editLabel
+                    }
+                    onChange={(e) =>
+                      setEditLabel(
+                        e.target
+                          .value
+                      )
+                    }
+                    className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+
+                  <button
+                    onClick={
+                      saveEdit
+                    }
+                    className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold"
+                  >
+                    저장
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setEditId(
+                        null
+                      )
+                    }
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600"
+                  >
+                    취소
+                  </button>
                 </div>
-                <div className="flex gap-1.5">
-                  <button onClick={() => { setEditId(item.id); setEditLabel(item.label); }} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"><Pencil size={14} /></button>
-                  <button onClick={() => deleteInspectionItem(item.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400"><Trash2 size={14} /></button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-mono w-5 text-center">
+                      {
+                        item.order
+                      }
+                    </span>
+
+                    <span className="text-sm font-semibold text-slate-800">
+                      {
+                        item.label
+                      }
+                    </span>
+                  </div>
+
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => {
+                        setEditId(
+                          item.id
+                        );
+
+                        setEditLabel(
+                          item.label
+                        );
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
+                    >
+                      <Pencil
+                        size={14}
+                      />
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        deleteInspectionItem(
+                          item.id
+                        )
+                      }
+                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400"
+                    >
+                      <Trash2
+                        size={14}
+                      />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        )}
       </div>
     </div>
   );
 }
 
-export function AdminMode({ onBack }: AdminModeProps) {
-  const [restrooms, setRestrooms] = useState<Restroom[]>(DEFAULT_RESTROOMS);
-  const [inspectionItems, setInspectionItems] = useState<InspectionItem[]>(DEFAULT_INSPECTION_ITEMS);
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [tab, setTab] = useState<Tab>("inspection");
-  const [manageTab, setManageTab] = useState<ManageTab>("restrooms");
-  const branchInfo = getCurrentBranchInfo();
+export function AdminMode({
+  onBack,
+}: AdminModeProps) {
+  const [
+    restrooms,
+    setRestrooms,
+  ] = useState<Restroom[]>(
+    DEFAULT_RESTROOMS
+  );
 
-  const unreadCount = complaints.filter((c) => !c.isRead).length;
+  const [
+    inspectionItems,
+    setInspectionItems,
+  ] = useState<
+    InspectionItem[]
+  >(
+    DEFAULT_INSPECTION_ITEMS
+  );
+
+  const [
+    complaints,
+    setComplaints,
+  ] = useState<Complaint[]>(
+    []
+  );
+
+  const [tab, setTab] =
+    useState<Tab>(
+      "inspection"
+    );
+
+  const [
+    manageTab,
+    setManageTab,
+  ] =
+    useState<ManageTab>(
+      "restrooms"
+    );
+
+  const branchInfo =
+    getCurrentBranchInfo();
+
+  const unreadCount =
+    complaints.filter(
+      (c) => !c.isRead
+    ).length;
 
   useEffect(() => {
-    const u1 = subscribeRestrooms(setRestrooms);
-    const u2 = subscribeInspectionItems(setInspectionItems);
-    const u3 = subscribeComplaints(setComplaints);
-    return () => { u1(); u2(); u3(); };
+    const u1 =
+      subscribeRestrooms(
+        setRestrooms
+      );
+
+    const u2 =
+      subscribeInspectionItems(
+        setInspectionItems
+      );
+
+    const u3 =
+      subscribeComplaints(
+        setComplaints
+      );
+
+    return () => {
+      u1();
+      u2();
+      u3();
+    };
   }, []);
 
-  const tabs: { key: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { key: "inspection", label: "점검 현황", icon: <ClipboardList size={15} /> },
-    { key: "complaints", label: "민원", icon: <MessageSquareWarning size={15} />, badge: unreadCount },
-    { key: "manage", label: "관리", icon: <Settings size={15} /> },
+  const tabs: {
+    key: Tab;
+    label: string;
+    icon: React.ReactNode;
+    badge?: number;
+  }[] = [
+    {
+      key: "inspection",
+      label: "점검 현황",
+      icon: (
+        <ClipboardList
+          size={15}
+        />
+      ),
+    },
+    {
+      key: "complaints",
+      label: "민원",
+      icon: (
+        <MessageSquareWarning
+          size={15}
+        />
+      ),
+      badge:
+        unreadCount,
+    },
+    {
+      key: "manage",
+      label: "관리",
+      icon: (
+        <Settings
+          size={15}
+        />
+      ),
+    },
   ];
 
   return (
@@ -1183,75 +1740,147 @@ export function AdminMode({ onBack }: AdminModeProps) {
       <div className="py-2 space-y-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={onBack}
+            onClick={
+              onBack
+            }
             className="w-9 h-9 bg-white border border-slate-200 rounded-xl flex items-center justify-center shadow-sm hover:bg-slate-50 transition-colors"
           >
-            <ArrowLeft size={18} className="text-slate-600" />
+            <ArrowLeft
+              size={18}
+              className="text-slate-600"
+            />
           </button>
+
           <div>
-            <h1 className="text-lg font-bold text-slate-800">{branchInfo ? `${branchInfo.name} 관리자 모드` : "관리자 모드"}</h1>
-            <p className="text-xs text-slate-400">일자별 점검 현황 · 항목 관리</p>
+            <h1 className="text-lg font-bold text-slate-800">
+              {branchInfo
+                ? `${branchInfo.name} 관리자 모드`
+                : "관리자 모드"}
+            </h1>
+
+            <p className="text-xs text-slate-400">
+              일자별 점검 현황 · 항목 관리
+            </p>
           </div>
         </div>
 
         <div className="flex gap-2">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors relative ${
-                tab === t.key
-                  ? "bg-slate-800 text-white"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {t.icon}
-              {t.label}
-              {t.badge != null && t.badge > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          ))}
+          {tabs.map(
+            (t) => (
+              <button
+                key={
+                  t.key
+                }
+                onClick={() =>
+                  setTab(
+                    t.key
+                  )
+                }
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors relative ${
+                  tab ===
+                  t.key
+                    ? "bg-slate-800 text-white"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {
+                  t.icon
+                }
+
+                {
+                  t.label
+                }
+
+                {t.badge !=
+                  null &&
+                  t.badge >
+                    0 && (
+                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                      {
+                        t.badge
+                      }
+                    </span>
+                  )}
+              </button>
+            )
+          )}
         </div>
 
-        {tab === "inspection" && (
-          <DailyInspectionView restrooms={restrooms} inspectionItems={inspectionItems} />
+        {tab ===
+          "inspection" && (
+          <DailyInspectionView
+            restrooms={
+              restrooms
+            }
+            inspectionItems={
+              inspectionItems
+            }
+          />
         )}
 
-        {tab === "complaints" && (
+        {tab ===
+          "complaints" && (
           <AdminComplaintList
-            complaints={complaints}
-             onMarkRead={markComplaintRead}
-             onMarkResolved={markComplaintResolved}
-           />
+            complaints={
+              complaints
+            }
+            onMarkRead={
+              markComplaintRead
+            }
+            onMarkResolved={
+              markComplaintResolved
+            }
+          />
         )}
 
-        {tab === "manage" && (
+        {tab ===
+          "manage" && (
           <div className="space-y-4">
             <div className="flex gap-2">
               <button
-                onClick={() => setManageTab("restrooms")}
+                onClick={() =>
+                  setManageTab(
+                    "restrooms"
+                  )
+                }
                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                  manageTab === "restrooms" ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  manageTab ===
+                  "restrooms"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 화장실
               </button>
+
               <button
-                onClick={() => setManageTab("items")}
+                onClick={() =>
+                  setManageTab(
+                    "items"
+                  )
+                }
                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                  manageTab === "items" ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  manageTab ===
+                  "items"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 점검 항목
               </button>
+
               {branchInfo && (
                 <button
-                  onClick={() => setManageTab("branch")}
+                  onClick={() =>
+                    setManageTab(
+                      "branch"
+                    )
+                  }
                   className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                    manageTab === "branch" ? "bg-blue-600 text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    manageTab ===
+                    "branch"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                   }`}
                 >
                   지점 설정
@@ -1259,9 +1888,28 @@ export function AdminMode({ onBack }: AdminModeProps) {
               )}
             </div>
 
-            {manageTab === "restrooms" && <RestroomManager restrooms={restrooms} />}
-            {manageTab === "items" && <InspectionItemManager items={inspectionItems} />}
-            {manageTab === "branch" && <BranchSettingsManager />}
+            {manageTab ===
+              "restrooms" && (
+              <RestroomManager
+                restrooms={
+                  restrooms
+                }
+              />
+            )}
+
+            {manageTab ===
+              "items" && (
+              <InspectionItemManager
+                items={
+                  inspectionItems
+                }
+              />
+            )}
+
+            {manageTab ===
+              "branch" && (
+              <BranchSettingsManager />
+            )}
           </div>
         )}
       </div>
