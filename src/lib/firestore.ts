@@ -35,7 +35,7 @@ import {
 } from "./branch";
 
 const DISCORD_BRIDGE_URL =
-  "https://script.google.com/macros/s/AKfycbykTwt5DfTCpPVSdhGWhTgPjQiabN979NbZGfsAl_xGEYU6z-OH_bKW1VLagzNMepR-Qg/exec";
+  "https://script.google.com/macros/s/AKfycbwt2mTW8Ysr6afZoWtWXUs28hgq5u1xt_owf08czHLgksKGuKWLUOBPAy8KiFrVyZKF/exec";
 
 export interface BranchAuthSettings {
   adminPassword: string;
