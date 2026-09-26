@@ -35,7 +35,7 @@ import {
 } from "./branch";
 
 const DISCORD_BRIDGE_URL =
-  "https://discord.com/api/webhooks/1485146591756161095/2dHC6xk-a76ORytaJsvpaK5hWmEmxeEjuzT9s95Ez88PqGm0qKmIAmx4ZYJCQq3_-0FZ";
+  "https://script.google.com/macros/s/AKfycbykTwt5DfTCpPVSdhGWhTgPjQiabN979NbZGfsAl_xGEYU6z-OH_bKW1VLagzNMepR-Qg/exec";
 
 export interface BranchAuthSettings {
   adminPassword: string;
